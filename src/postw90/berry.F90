@@ -31,6 +31,8 @@ module w90_berry
   !
   ! * Undocumented, works for limited purposes only:
   !                                 reading k-points and weights from file
+  !
+  ! added berry_task: bc 'berry connection matrix elements'
 
   use w90_constants, only: dp
 
@@ -87,11 +89,11 @@ contains
 
     use w90_constants, only: dp, cmplx_0, cmplx_i, elem_charge_SI, hbar_SI, &
       eV_au, bohr, pi, eV_seconds
-    use w90_comms, only: on_root, num_nodes, my_node_id, comms_reduce
+    use w90_comms, only: on_root, num_nodes, my_node_id, comms_reduce, comms_gatherv
     use w90_io, only: io_error, stdout, io_file_unit, seedname, &
       io_stopwatch
-    use w90_postw90_common, only: nrpts, irvec, num_int_kpts_on_node, int_kpts, &
-      weight
+    use w90_postw90_common, only: nrpts, irvec, num_int_kpts_on_node, int_kpts, num_int_kpts, &
+      weight, num_int_kpts_disp
     use w90_parameters, only: timing_level, iprint, num_wann, berry_kmesh, &
       berry_curv_adpt_kmesh, &
       berry_curv_adpt_kmesh_thresh, &
@@ -128,6 +130,8 @@ contains
     ! Complex optical conductivity, dividided into Hermitean and
     ! anti-Hermitean parts
     !
+    complex(kind=dp), allocatable :: AA_tot(:, :, :, :)
+    complex(kind=dp), allocatable :: AA_loc(:, :, :, :)
     complex(kind=dp), allocatable :: kubo_H_k(:, :, :)
     complex(kind=dp), allocatable :: kubo_H(:, :, :)
     complex(kind=dp), allocatable :: kubo_AH_k(:, :, :)
@@ -159,7 +163,7 @@ contains
                          file_unit
     character(len=120) :: file_name
     logical           :: eval_ahc, eval_morb, eval_kubo, not_scannable, eval_sc, eval_shc, &
-                         eval_kdotp
+                         eval_kdotp, eval_bc
     logical           :: ladpt_kmesh
     logical           :: ladpt(nfermi)
 
@@ -180,15 +184,29 @@ contains
     eval_sc = .false.
     eval_shc = .false.
     eval_kdotp = .false.
+    eval_bc = .false.
     if (index(berry_task, 'ahc') > 0) eval_ahc = .true.
     if (index(berry_task, 'morb') > 0) eval_morb = .true.
     if (index(berry_task, 'kubo') > 0) eval_kubo = .true.
     if (index(berry_task, 'sc') > 0) eval_sc = .true.
     if (index(berry_task, 'shc') > 0) eval_shc = .true.
     if (index(berry_task, 'kdotp') > 0) eval_kdotp = .true.
+    if (index(berry_task, 'bc') > 0) eval_bc = .true.
+    
+    if ( eval_bc = .true. .AND. (.NOT. wanint_kpoint_file) ) call io_error( &
+      'Must provide kpoint.dat when evaluating BCME')
 
     ! Wannier matrix elements, allocations and initializations
     !
+    if (eval_bc) then
+      call get_HH_R
+      call get_AA_R
+      if (on_root) then
+        allocate( AA_tot(num_int_kpts, num_wann, num_wann, 3) )
+      end if
+      allocate( AA_loc(num_int_kpts_on_node(my_node_id), num_wann, num_wann, 3) )
+    endif
+    
     if (eval_ahc) then
       call get_HH_R
       call get_AA_R
@@ -289,6 +307,9 @@ contains
         'Properties calculated in module  b e r r y'
       write (stdout, '(1x,a)') &
         '------------------------------------------'
+
+      if (eval_bc) write (stdout, '(/,3x,a)') &
+        '* Berry connection matrix elements'
 
       if (eval_ahc) write (stdout, '(/,3x,a)') &
         '* Anomalous Hall conductivity'
@@ -391,6 +412,7 @@ contains
       if (on_root) write (stdout, '(/,1x,a,i10,a)') &
         'Reading interpolation grid from file kpoint.dat: ', &
         sum(num_int_kpts_on_node), ' points'
+        
 
       ! Loop over k-points on the irreducible wedge of the Brillouin
       ! zone, read from file 'kpoint.dat'
@@ -402,6 +424,10 @@ contains
         !               .
         ! ***BEGIN COPY OF CODE BLOCK 1***
         !
+        if (eval_bc) then
+          call berry_get_AA_k(kpt, AA_loc(loop_xyz, :, :, :))
+        endif
+        
         if (eval_ahc) then
           call berry_get_imf_klist(kpt, imf_k_list)
           ladpt = .false.
@@ -653,6 +679,11 @@ contains
 
     ! Collect contributions from all nodes
     !
+    if (eval_bc) then
+      call comms_gatherv(AA_loc, num_wann*num_wann*3*num_int_kpts_on_node(my_node_id), &
+                         AA_tot, num_wann*num_wann*3*num_int_kpts_on_node, num_wann*num_wann*3*num_int_kpts_disp)
+    endif
+    
     if (eval_ahc) then
       call comms_reduce(imf_list(1, 1, 1), 3*3*nfermi, 'SUM')
       call comms_reduce(adpt_counter_list(1), nfermi, 'SUM')
@@ -774,6 +805,25 @@ contains
         if (.not. wanint_kpoint_file) write (stdout, '(1x,a20,3(i0,1x))') &
           'Interpolation grid: ', berry_kmesh(1:3)
       endif
+      
+      if (eval_bc) then
+      
+        write (stdout, '(/,1x,a)') &
+          '----------------------------------------------------------'
+        write (stdout, '(1x,a)') &
+          'The Berry connection matrix elements are saved to:                         '
+        write (stdout, '(1x,a)') &
+          '----------------------------------------------------------'
+        file_name = trim(seedname)//'-AA.dat'
+        file_name = trim(file_name)
+        file_unit = io_file_unit()
+        write (stdout, '(/,3x,a)') '* '//file_name
+        open (file_unit, FILE=file_name, STATUS='UNKNOWN', FORM='UNFORMATTED')
+        write (file_unit) num_int_kpts, num_wan
+        write (file_unit) AA_tot
+        close (file_unit)
+        
+      end if
 
       if (eval_ahc) then
         !
@@ -1455,6 +1505,70 @@ contains
   !===========================================================!
   !                   PRIVATE PROCEDURES                      !
   !===========================================================!
+
+    subroutine berry_get_AA_k(kpt, AA_k)
+    !====================================================================!
+    !                                                                    !
+    !! Berry connection at kpt
+    !                                                                    !
+    !====================================================================!
+
+    use w90_constants, only: dp, cmplx_0, cmplx_i, pi
+    use w90_utility, only: utility_diagonalize, utility_rotate
+    use w90_parameters, only: num_wann, &
+      fermi_energy_list,  &
+      adpt_smr, smr_fixed_en_width, &
+      adpt_smr_max, adpt_smr_fac, &
+      smr_index, berry_kmesh
+    use w90_postw90_common, only: pw90common_get_occ, pw90common_fourier_R_to_k_new, &
+      pw90common_fourier_R_to_k_vec, pw90common_kmesh_spacing
+    use w90_wan_ham, only: wham_get_D_h, wham_get_eig_deleig
+    use w90_get_oper, only: HH_R, AA_R
+
+
+    ! Arguments
+    !
+    !
+    real(kind=dp), intent(in)  :: kpt(3)
+    complex(kind=dp), dimension(:, :, :), intent(out) :: AA_k
+
+    complex(kind=dp), allocatable :: HH(:, :)
+    complex(kind=dp), allocatable :: delHH(:, :, :)
+    complex(kind=dp), allocatable :: UU(:, :)
+    complex(kind=dp), allocatable :: D_h(:, :, :)
+
+    !
+    real(kind=dp)    :: del_eig(num_wann, 3), joint_level_spacing, &
+                        eta_smr, Delta_k, arg, vdum(3)
+
+    integer          :: i, j, n, m, ifreq, ispn
+    real(kind=dp)    :: eig(num_wann), occ(num_wann), delta, &
+                        rfac1, rfac2, occ_prod, spn_nk(num_wann)
+    complex(kind=dp) :: cfac, omega
+
+    allocate (HH(num_wann, num_wann))
+    allocate (delHH(num_wann, num_wann, 3))
+    allocate (UU(num_wann, num_wann))
+    allocate (D_h(num_wann, num_wann, 3))
+
+
+    call pw90common_fourier_R_to_k_new(kpt, HH_R, OO=HH, &
+                                         OO_dx=delHH(:, :, 1), &
+                                         OO_dy=delHH(:, :, 2), &
+                                         OO_dz=delHH(:, :, 3))
+    call utility_diagonalize(HH, num_wann, eig, UU)
+   
+    call pw90common_get_occ(eig, occ, fermi_energy_list(1))
+    call wham_get_D_h(delHH, UU, eig, D_h)
+
+    call pw90common_fourier_R_to_k_vec(kpt, AA_R, OO_true=AA_k)
+    do i = 1, 3
+      AA_k(:, :, i) = utility_rotate(AA_k(:, :, i), UU, num_wann)
+    enddo
+    AA_k = AA_k + cmplx_i*D_h ! Eq.(25) WYSV06
+
+  end subroutine berry_get_AA_k
+
 
   subroutine berry_get_kubo_k(kpt, kubo_H_k, kubo_AH_k, jdos_k, &
                               kubo_H_k_spn, kubo_AH_k_spn, jdos_k_spn)
