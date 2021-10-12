@@ -206,6 +206,11 @@ contains
     
     int_kpts(:, 1:counts(my_node_id)) = int_kpts_tot(:, displs(my_node_id)+1,displs(my_node_id)+counts(my_node_id))
     weight(:, 1:counts(my_node_id)) = weight_tot(:, displs(my_node_id)+1,displs(my_node_id)+counts(my_node_id))
+    
+    !call comms_scatterv(int_kpts, 3*num_int_kpts_on_node(my_node_id), &
+    !                    int_kpts_tot, 3*counts, 3*displs)
+    !call comms_scatterv(weight, num_int_kpts_on_node(my_node_id), &
+    !                    weight_tot, counts, displs)
 
     !sum = 0.0_dp
     !if (on_root) then
