@@ -12,6 +12,8 @@
 ! https://github.com/wannier-developers/wannier90            !
 !------------------------------------------------------------!
 
+! used comms_array_split to distribute the kpoint.dat
+
 module w90_postw90_common
 
 !==============================================================================
@@ -67,7 +69,9 @@ module w90_postw90_common
 
   integer                       :: max_int_kpts_on_node, num_int_kpts
   integer, allocatable          :: num_int_kpts_on_node(:)
+  integer, allocatable          :: num_int_kpts_disp(:)
   real(kind=dp), allocatable    :: int_kpts(:, :), weight(:)
+  real(kind=dp), allocatable    :: int_kpts_tot(:, :), weight_tot(:)
   complex(kind=dp), allocatable :: v_matrix(:, :, :)
 
 contains
@@ -162,6 +166,8 @@ contains
     integer       :: k_unit
     integer       :: loop_nodes, loop_kpt, i, ierr
     real(kind=dp) :: sum
+    integer, dimension(0:num_nodes - 1) :: counts
+    integer, dimension(0:num_nodes - 1) :: displs
 
     k_unit = io_file_unit()
     if (on_root) then
@@ -169,44 +175,62 @@ contains
       read (k_unit, *) num_int_kpts
     end if
     call comms_bcast(num_int_kpts, 1)
-
+    allocate( int_kpts_tot(3,num_int_kpts), weight_tot(num_int_kpts) )
+    
+    if (on_root) then
+      do loop_kpt = 1, num_int_kpts
+         read (k_unit, *) (int_kpts_tot(i, loop_kpt), i=1, 3), weight_tot(loop_kpt)
+      end do
+    end if
+    call comms_bcast(int_kpts_tot, num_int_kpts*3)
+    call comms_bcast(weight_tot, num_int_kpts)
+    
+    call comms_array_split(num_int_kpts, counts, displs)
+    
     allocate (num_int_kpts_on_node(0:num_nodes - 1))
-    num_int_kpts_on_node(:) = num_int_kpts/num_nodes
-    max_int_kpts_on_node = num_int_kpts - (num_nodes - 1)*(num_int_kpts/num_nodes)
-    num_int_kpts_on_node(0) = max_int_kpts_on_node
+    allocate (num_int_kpts_disp(0:num_nodes - 1))
+    num_int_kpts_on_node = counts
+    num_int_kpts_disp = displs
+    
+    !num_int_kpts_on_node(:) = num_int_kpts/num_nodes
+    !max_int_kpts_on_node = num_int_kpts - (num_nodes - 1)*(num_int_kpts/num_nodes)
+    !num_int_kpts_on_node(0) = max_int_kpts_on_node
 !    if(my_node_id < num_int_kpts- num_int_kpts_on_node*num_nodes)  num_int_kpts_on_node= num_int_kpts_on_node+1
 
-    allocate (int_kpts(3, max_int_kpts_on_node), stat=ierr)
+    allocate (int_kpts(3, num_int_kpts_on_node(my_node_id)), stat=ierr)
     if (ierr /= 0) call io_error('Error allocating max_int_kpts_on_node in param_read_um')
     int_kpts = 0.0_dp
-    allocate (weight(max_int_kpts_on_node), stat=ierr)
+    allocate (weight(num_int_kpts_on_node(my_node_id)), stat=ierr)
     if (ierr /= 0) call io_error('Error allocating weight in param_read_um')
     weight = 0.0_dp
+    
+    int_kpts(:, 1:counts(my_node_id)) = int_kpts_tot(:, displs(my_node_id)+1,displs(my_node_id)+counts(my_node_id))
+    weight(:, 1:counts(my_node_id)) = weight_tot(:, displs(my_node_id)+1,displs(my_node_id)+counts(my_node_id))
 
-    sum = 0.0_dp
-    if (on_root) then
-      do loop_nodes = 1, num_nodes - 1
-        do loop_kpt = 1, num_int_kpts_on_node(loop_nodes)
-          read (k_unit, *) (int_kpts(i, loop_kpt), i=1, 3), weight(loop_kpt)
-          sum = sum + weight(loop_kpt)
-        end do
+    !sum = 0.0_dp
+    !if (on_root) then
+    !  do loop_nodes = 1, num_nodes - 1
+    !    do loop_kpt = 1, num_int_kpts_on_node(loop_nodes)
+    !      read (k_unit, *) (int_kpts(i, loop_kpt), i=1, 3), weight(loop_kpt)
+    !      sum = sum + weight(loop_kpt)
+    !    end do
 
-        call comms_send(int_kpts(1, 1), 3*num_int_kpts_on_node(loop_nodes), loop_nodes)
-        call comms_send(weight(1), num_int_kpts_on_node(loop_nodes), loop_nodes)
+    !    call comms_send(int_kpts(1, 1), 3*num_int_kpts_on_node(loop_nodes), loop_nodes)
+    !    call comms_send(weight(1), num_int_kpts_on_node(loop_nodes), loop_nodes)
 
-      end do
-      do loop_kpt = 1, num_int_kpts_on_node(0)
-        read (k_unit, *) (int_kpts(i, loop_kpt), i=1, 3), weight(loop_kpt)
-        sum = sum + weight(loop_kpt)
-      end do
-!       print*,'rsum',sum
-    end if
+    !  end do
+    !  do loop_kpt = 1, num_int_kpts_on_node(0)
+    !    read (k_unit, *) (int_kpts(i, loop_kpt), i=1, 3), weight(loop_kpt)
+    !    sum = sum + weight(loop_kpt)
+    !  end do
+!   !    print*,'rsum',sum
+    !end if
 
-    if (.not. on_root) then
-      call comms_recv(int_kpts(1, 1), 3*num_int_kpts_on_node(my_node_id), root_id)
-      call comms_recv(weight(1), num_int_kpts_on_node(my_node_id), root_id)
+    !if (.not. on_root) then
+    !  call comms_recv(int_kpts(1, 1), 3*num_int_kpts_on_node(my_node_id), root_id)
+    !  call comms_recv(weight(1), num_int_kpts_on_node(my_node_id), root_id)
 
-    end if
+    !end if
 
     return
 
