@@ -12,7 +12,6 @@
 ! https://github.com/wannier-developers/wannier90            !
 !------------------------------------------------------------!
 
-! used comms_array_split to distribute the kpoint.dat
 
 module w90_postw90_common
 
