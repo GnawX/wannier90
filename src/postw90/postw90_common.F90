@@ -34,7 +34,7 @@ module w90_postw90_common
   public :: pw90common_wanint_data_dist, pw90common_get_occ
   public :: pw90common_fourier_R_to_k, pw90common_fourier_R_to_k_new, pw90common_fourier_R_to_k_vec
   public :: nrpts, rpt_origin, v_matrix, ndegen, irvec, crvec
-  public :: num_int_kpts_on_node, int_kpts, weight
+  public :: num_int_kpts_on_node, int_kpts, weight, num_int_kpts, num_int_kpts_disp 
   public :: pw90common_kmesh_spacing
   public :: pw90common_fourier_R_to_k_new_second_d, pw90common_fourier_R_to_k_new_second_d_TB_conv, &
             pw90common_fourier_R_to_k_vec_dadb, pw90common_fourier_R_to_k_vec_dadb_TB_conv
