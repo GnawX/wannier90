@@ -181,8 +181,8 @@ contains
          read (k_unit, *) (int_kpts_tot(i, loop_kpt), i=1, 3), weight_tot(loop_kpt)
       end do
     end if
-    call comms_bcast(int_kpts_tot, num_int_kpts*3)
-    call comms_bcast(weight_tot, num_int_kpts)
+    call comms_bcast(int_kpts_tot(1,1), num_int_kpts*3)
+    call comms_bcast(weight_tot(1), num_int_kpts)
     
     call comms_array_split(num_int_kpts, counts, displs)
     
@@ -203,8 +203,8 @@ contains
     if (ierr /= 0) call io_error('Error allocating weight in param_read_um')
     weight = 0.0_dp
     
-    int_kpts(:, 1:counts(my_node_id)) = int_kpts_tot(:, displs(my_node_id)+1,displs(my_node_id)+counts(my_node_id))
-    weight(:, 1:counts(my_node_id)) = weight_tot(:, displs(my_node_id)+1,displs(my_node_id)+counts(my_node_id))
+    int_kpts(:, 1:counts(my_node_id)) = int_kpts_tot(:, displs(my_node_id)+1:displs(my_node_id)+counts(my_node_id))
+    weight(1:counts(my_node_id)) = weight_tot(displs(my_node_id)+1:displs(my_node_id)+counts(my_node_id))
     
     !call comms_scatterv(int_kpts, 3*num_int_kpts_on_node(my_node_id), &
     !                    int_kpts_tot, 3*counts, 3*displs)
