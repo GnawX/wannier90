@@ -193,7 +193,7 @@ contains
     if (index(berry_task, 'kdotp') > 0) eval_kdotp = .true.
     if (index(berry_task, 'bc') > 0) eval_bc = .true.
     
-    if ( eval_bc = .true. .AND. (.NOT. wanint_kpoint_file) ) call io_error( &
+    if ( eval_bc == .true. .AND. (.NOT. wanint_kpoint_file) ) call io_error( &
       'Must provide kpoint.dat when evaluating BCME')
 
     ! Wannier matrix elements, allocations and initializations
@@ -819,7 +819,7 @@ contains
         file_unit = io_file_unit()
         write (stdout, '(/,3x,a)') '* '//file_name
         open (file_unit, FILE=file_name, STATUS='UNKNOWN', FORM='UNFORMATTED')
-        write (file_unit) num_int_kpts, num_wan
+        write (file_unit) num_int_kpts, num_wann
         write (file_unit) AA_tot
         close (file_unit)
         
@@ -1515,11 +1515,7 @@ contains
 
     use w90_constants, only: dp, cmplx_0, cmplx_i, pi
     use w90_utility, only: utility_diagonalize, utility_rotate
-    use w90_parameters, only: num_wann, &
-      fermi_energy_list,  &
-      adpt_smr, smr_fixed_en_width, &
-      adpt_smr_max, adpt_smr_fac, &
-      smr_index, berry_kmesh
+    use w90_parameters, only: num_wann, fermi_energy_list
     use w90_postw90_common, only: pw90common_get_occ, pw90common_fourier_R_to_k_new, &
       pw90common_fourier_R_to_k_vec, pw90common_kmesh_spacing
     use w90_wan_ham, only: wham_get_D_h, wham_get_eig_deleig
