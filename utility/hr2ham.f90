@@ -10,7 +10,7 @@ PROGRAM hr2ham
   
   INTEGER            :: i, j, ir, nrtot, file_unit, dimwann, stdout, &
                         nsize, itmp, nr(3)
-  CHARACTER(len=33)  :: header, fileout
+  CHARACTER(len=33)  :: header, fileout, filein
   CHARACTER(600)     :: attr
 
   INTEGER,     ALLOCATABLE :: ivr(:,:), iwr(:)
@@ -21,7 +21,7 @@ PROGRAM hr2ham
   READ(5,*) filein
   WRITE(6,*) 'output ham file name'
   READ(5,*) fileout
-  WRITE(6,*) 'k or r mesh'
+  WRITE(6,*) 'dims of k/r mesh'
   READ(5,*) nr(1), nr(2), nr(3)
 
 ! read hr file
