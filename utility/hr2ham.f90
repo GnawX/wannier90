@@ -20,7 +20,7 @@ PROGRAM hr2ham
 ! read hr file
   file_unit = 111
   OPEN (file_unit, file='wannier90_hr.dat', form='formatted', &
-          status='unknown', err=101)
+          status='unknown')
 
   READ (file_unit, *) header ! Date and time
   READ (file_unit, *) dimwann
@@ -66,7 +66,7 @@ PROGRAM hr2ham
   CALL iotk_write_dat( stdout, "IVR", ivr, COLUMNS=3, ATTR=attr )
 
   CALL iotk_write_attr( attr, "type", "real", FIRST=.TRUE. )
-  CALL iotk_write_attr( attr, "size", nkpts )
+  !CALL iotk_write_attr( attr, "size", nkpts )
   CALL iotk_write_dat( stdout, "WR", wr, ATTR=attr )
 
   CALL iotk_write_begin(stdout,"RHAM")
