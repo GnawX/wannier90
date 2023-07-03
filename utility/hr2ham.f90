@@ -7,17 +7,15 @@ PROGRAM hr2ham
   USE iotk_module
 !
   IMPLICIT NONE
-
-
-  DP = KIND(1.0d0)
   
   INTEGER            :: i, j, ir, nrtot, file_unit, dimwann, stdout, &
-                        nsize
+                        nsize, itmp
   CHARACTER(len=33)  :: header, fileout
+  CHARACTER(600)     :: attr
 
   INTEGER,     ALLOCATABLE :: ivr(:,:), iwr(:)
-  REAL(dp),    ALLOCATABLE :: wr(:)
-  COMPLEX(dp), ALLOCATABLE :: rham(:,:,:)
+  REAL(kind(1.0d0)),    ALLOCATABLE :: wr(:)
+  COMPLEX(kind(1.0d0)), ALLOCATABLE :: rham(:,:,:)
 
 ! read hr file
   file_unit = 111
@@ -34,7 +32,7 @@ PROGRAM hr2ham
   DO ir = 1, nrtot
     DO i = 1, dimwann
       DO j = 1, dimwann
-        READ (file_unit, '(5I5,2F12.6)') ivr(:, ir), j, i, &
+        READ (file_unit, '(5I5,2F12.6)') ivr(:, ir), itmp, itmp, &
               rham(j, i, ir)
       END DO
     END DO
