@@ -9,7 +9,7 @@ PROGRAM hr2ham
   IMPLICIT NONE
   
   INTEGER            :: i, j, ir, nrtot, file_unit, dimwann, stdout, &
-                        nsize, itmp
+                        nsize, itmp, nr(3)
   CHARACTER(len=33)  :: header, fileout
   CHARACTER(600)     :: attr
 
@@ -17,9 +17,16 @@ PROGRAM hr2ham
   REAL(kind(1.0d0)),    ALLOCATABLE :: wr(:)
   COMPLEX(kind(1.0d0)), ALLOCATABLE :: rham(:,:,:)
 
+  WRITE(6,*) 'input hr file name'
+  READ(5,*) filein
+  WRITE(6,*) 'output ham file name'
+  READ(5,*) fileout
+  WRITE(6,*) 'k or r mesh'
+  READ(5,*) nr(1), nr(2), nr(3)
+
 ! read hr file
   file_unit = 111
-  OPEN (file_unit, file='wannier90_hr.dat', form='formatted', &
+  OPEN (file_unit, file=TRIM(filein), form='formatted', &
           status='unknown')
 
   READ (file_unit, *) header ! Date and time
@@ -40,19 +47,18 @@ PROGRAM hr2ham
 
   CLOSE (file_unit)
 
-  wr = iwr/SUM(iwr)
+  wr = iwr*1.0d0/SUM(iwr)
 
 ! write ham file
 
   stdout = 222
-  fileout = 'wannier90.ham'
-  CALL iotk_open_write( stdout, FILE=TRIM(fileout))
+  CALL iotk_open_write( stdout, FILE=TRIM(fileout), binary=.True.)
 
   CALL iotk_write_begin(stdout,"HAMILTONIAN")
 
   CALL iotk_write_attr( attr, "dimwann", dimwann, FIRST=.TRUE. )
   CALL iotk_write_attr( attr, "nrtot", nrtot )
-  !CALL iotk_write_attr( attr, "nr", nr )
+  CALL iotk_write_attr( attr, "nr", nr )
   !CALL iotk_write_attr( attr, "have_overlap", have_overlap )
   !CALL iotk_write_attr( attr, "fermi_energy", fermi_energy )
 
